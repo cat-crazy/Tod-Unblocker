@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>2D Platformer LAN Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html { width: 100%; height: 100%; font-family: sans-serif; background: #1e1e1e; color: white; }
+    #menu, #connect-screen, #game-container { display: none; }
+    #menu, #connect-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+    button { margin: 10px; padding: 10px 20px; font-size: 18px; background: #2d2d2d; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background: #444; }
+    canvas { background: #333; display: block; margin: auto; }
+    input, textarea { padding: 10px; margin: 10px; font-size: 16px; width: 90%; max-width: 600px; }
+    #chat { position: absolute; right: 10px; bottom: 10px; width: 300px; max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; }
+    #chat-messages { max-height: 250px; overflow-y: auto; margin-bottom: 5px; }
+    #chat-input { width: 100%; }
+    #connectingStatus {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8);
+      color: #000; font-size: 24px; display: flex; align-items: center; justify-content: center; z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+  <div id="menu">
+    <h1>2D Platformer LAN Game</h1>
+    <button onclick="startSingleplayer()">Singleplayer</button>
+    <button onclick="showConnectScreen()">Multiplayer</button>
+  </div>
+
+  <div id="connect-screen">
+    <h2>Step 1: Host</h2>
+    <button onclick="createGame()">Create Offer</button>
+    <textarea id="offer" placeholder="Copy this and send to your friend..."></textarea>
+
+    <h2>Step 2: Joiner</h2>
+    <textarea id="remoteOffer" placeholder="Paste offer here..."></textarea>
+    <button onclick="submitOffer()">Create Answer</button>
+    <textarea id="answer" placeholder="Copy this and send back to host..."></textarea>
+
+    <h2>Step 3: Host Completes</h2>
+    <textarea id="remoteAnswer" placeholder="Paste answer from friend..."></textarea>
+    <button onclick="finalizeConnection()">Finish</button>
+
+    <button onclick="backToMenu()">Back</button>
+  </div>
+
+  <div id="connectingStatus">Connecting to opponent...</div>
+
+  <div id="game-container">
+    <canvas id="game" width="800" height="500"></canvas>
+    <div id="chat">
+      <div id="chat-messages"></div>
+      <input id="chat-input" type="text" placeholder="Type message...">
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/simple-peer@9/simplepeer.min.js"></script>
+  <script>
+    const menu = document.getElementById('menu');
+    const connectScreen = document.getElementById('connect-screen');
+    const gameContainer = document.getElementById('game-container');
+    const connectingStatus = document.getElementById('connectingStatus');
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const chatInput = document.getElementById('chat-input');
+    const chatMessages = document.getElementById('chat-messages');
+
+    menu.style.display = 'flex';
+
+    let peer;
+    let isHost = false;
+    let remotePlayer = { x: 100, y: 100 };
+    let player = { x: 50, y: 100, vx: 0, vy: 0, grounded: false };
+    let keys = {};
+
+    const tileSize = 40;
+    const level = [
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ];
+
+    function showConnectScreen() {
+      menu.style.display = 'none';
+      connectScreen.style.display = 'flex';
+    }
+
+    function backToMenu() {
+      connectScreen.style.display = 'none';
+      menu.style.display = 'flex';
+    }
+
+    function createGame() {
+      peer = new SimplePeer({ initiator: true, trickle: false });
+      isHost = true;
+      setupPeerEvents();
+    }
+
+    function submitOffer() {
+      peer = new SimplePeer({ initiator: false, trickle: false });
+      setupPeerEvents();
+      const remoteOffer = document.getElementById('remoteOffer').value;
+      if (remoteOffer) peer.signal(JSON.parse(remoteOffer));
+    }
+
+    function finalizeConnection() {
+      const remoteAnswer = document.getElementById('remoteAnswer').value;
+      if (remoteAnswer) {
+        connectingStatus.style.display = 'flex';
+        peer.signal(JSON.parse(remoteAnswer));
+      }
+    }
+
+    function setupPeerEvents() {
+      peer.on('signal', data => {
+        const output = JSON.stringify(data);
+        if (isHost) document.getElementById('offer').value = output;
+        else document.getElementById('answer').value = output;
+      });
+
+      peer.on('connect', () => {
+        connectingStatus.style.display = 'none';
+        startGame();
+      });
+
+      peer.on('data', data => {
+        const msg = JSON.parse(data);
+        if (msg.type === 'pos') remotePlayer = msg;
+        else if (msg.type === 'chat') addChatMessage("Peer", msg.text);
+      });
+    }
+
+    function startSingleplayer() {
+      startGame();
+    }
+
+    function startGame() {
+      menu.style.display = 'none';
+      connectScreen.style.display = 'none';
+      gameContainer.style.display = 'block';
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener('keydown', e => keys[e.code] = true);
+    document.addEventListener('keyup', e => keys[e.code] = false);
+
+    chatInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && chatInput.value.trim() !== '') {
+        const text = chatInput.value.trim();
+        addChatMessage("You", text);
+        if (peer && peer.connected) peer.send(JSON.stringify({ type: 'chat', text }));
+        chatInput.value = '';
+      }
+    });
+
+    function addChatMessage(sender, text) {
+      const div = document.createElement('div');
+      div.textContent = `${sender}: ${text}`;
+      chatMessages.appendChild(div);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function drawMap() {
+      for (let y = 0; y < level.length; y++) {
+        for (let x = 0; x < level[y].length; x++) {
+          if (level[y][x] === 1) {
+            ctx.fillStyle = '#666';
+            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          } else if (level[y][x] === 3) {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          }
+        }
+      }
+    }
+
+    function gameLoop() {
+      player.vy += 0.5;
+      player.grounded = false;
+
+      if (keys['ArrowLeft']) player.vx = -2;
+      else if (keys['ArrowRight']) player.vx = 2;
+      else player.vx = 0;
+
+      if (keys['Space'] && player.grounded) {
+        player.vy = -10;
+        player.grounded = false;
+      }
+
+      player.x += player.vx;
+      player.y += player.vy;
+
+      const px = Math.floor((player.x + 15) / tileSize);
+      const py = Math.floor((player.y + 30) / tileSize);
+      if (level[py] && level[py][px] === 1) {
+        player.y = py * tileSize - 30;
+        player.vy = 0;
+        player.grounded = true;
+      } else if (level[py] && level[py][px] === 3) {
+        player.x = 50;
+        player.y = 100;
+        player.vx = 0;
+        player.vy = 0;
+      }
+
+      if (peer && peer.connected) {
+        peer.send(JSON.stringify({ type: 'pos', x: player.x, y: player.y }));
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#222';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawMap();
+
+      ctx.fillStyle = 'green';
+      ctx.fillRect(player.x, player.y, 30, 30);
+
+      if (peer && peer.connected) {
+        ctx.fillStyle = 'purple';
+        ctx.fillRect(remotePlayer.x, remotePlayer.y, 30, 30);
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+  </script>
+</body>
+</html>
