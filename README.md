@@ -7,3 +7,10 @@ Enter the URL and press enter (FULL URL, i.e. HTTPS://example.com)
 Press download for it to download as an HTML file, then you can go to files to open it like to. 
 Or, you can also press preview to open it in a window.
 Happy Unblocking!
+
+Notes-
+
+Yeah 90% of this code is just making it easy to understand and look good.
+
+Update Logs-
+UPD's Go Here
