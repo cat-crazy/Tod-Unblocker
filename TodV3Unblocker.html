@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tod Unblocker V3</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #111;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 20px;
+      gap: 20px;
+      animation: fadeIn 1s ease-in-out;
+    }
+
+    input, button {
+      padding: 12px 20px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: none;
+      outline: none;
+      transition: 0.3s;
+      background: #222;
+      color: #fff;
+      box-shadow: 0 0 10px #0ff3;
+    }
+
+    input:focus, button:hover {
+      background: #333;
+      transform: scale(1.05);
+      box-shadow: 0 0 15px #0ff;
+    }
+
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .hidden { display: none; }
+
+    .top-bar {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .top-bar button {
+      padding: 5px 10px;
+      background: #444;
+      color: #fff;
+      font-size: 14px;
+      border-radius: 8px;
+      box-shadow: 0 0 6px #0ff3;
+    }
+
+    .top-bar input[type="range"] {
+      width: 100px;
+    }
+
+    .spinner {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 60px;
+      height: 60px;
+      border: 6px solid #0ff5;
+      border-top: 6px solid #0ff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      transform: translate(-50%, -50%);
+      z-index: 9999;
+    }
+
+    @keyframes spin {
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="mainUI">
+    <h1 style="font-size: 2em; color:rgb(29, 66, 111); ">Tod Unblocker V3</h1>
+    <input type="text" id="urlInput" placeholder="Enter URL to embed">
+    <input type="text" id="panicUrl" placeholder="Emergency Panic URL" value="https://classroom.google.com">
+    <div class="button-group">
+      <button onclick="preview()">🔎 Preview</button>
+      <button onclick="download()">⬇️ Download</button>
+      <button onclick="showLogs()">📜 Update Logs</button>
+    </div>
+  </div>
+
+  <div id="logUI" class="container hidden">
+    <h2>📝 Update Logs</h2>
+    <p> Tod Unblocker : Version Three <br>
+       - Change your emergency redirect link (Second text box on the start page)<br>
+       - Sound effects and the most beautiful animation ever known to mankind.<br>
+       - Overhauled the ENTIRE UI and all buttons<br>
+         More features coming soon! </p>
+    <button onclick="goBack()">Back</button>
+  </div>
+
+  <div class="top-bar">
+    <button onclick="toggleMute()">🔈 <span id="muteStatus">On</span></button>
+    <input type="range" min="0" max="100" value="50" id="volumeSlider" title="Volume">
+  </div>
+
+  <div id="spinner" class="spinner hidden"></div>
+
+  <script>
+    let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let isMuted = false;
+    let volume = 0.5;
+
+    document.getElementById("volumeSlider").addEventListener("input", e => {
+      volume = parseFloat(e.target.value) / 100;
+      if (volume === 0) isMuted = true;
+      else isMuted = false;
+      document.getElementById("muteStatus").textContent = isMuted ? "Off" : "On";
+    });
+
+    function playClickSound(freq = 300) {
+      if (isMuted) return;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.frequency.value = freq;
+      o.type = "square";
+      g.gain.setValueAtTime(volume * 0.1, audioCtx.currentTime);
+      o.start();
+      o.stop(audioCtx.currentTime + 0.1);
+    }
+
+    function playLoadingSound() {
+      if (isMuted) return;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.type = "triangle";
+      o.frequency.setValueAtTime(440, audioCtx.currentTime);
+      g.gain.setValueAtTime(volume * 0.08, audioCtx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(110, audioCtx.currentTime + 0.6);
+      o.start();
+      o.stop(audioCtx.currentTime + 0.6);
+    }
+
+    function toggleMute() {
+      isMuted = !isMuted;
+      document.getElementById("muteStatus").textContent = isMuted ? "Off" : "On";
+      playClickSound();
+    }
+
+    function showLoading() {
+      document.getElementById("spinner").classList.remove("hidden");
+    }
+
+    function hideLoading() {
+      document.getElementById("spinner").classList.add("hidden");
+    }
+
+    function preview() {
+      const link = document.getElementById("urlInput").value;
+      if (!link) return alert("Please enter a URL.");
+      playLoadingSound();
+      showLoading();
+      setTimeout(() => {
+        const w = window.open('', '_blank', 'width=1200,height=800,resizable=yes');
+        w.document.write(`<embed src="${link}" style="width:100%; height:100%; border:none;">`);
+        hideLoading();
+      }, 700);
+    }
+
+    function download() {
+      playClickSound();
+      const link = document.getElementById("urlInput").value;
+      if (!link) return alert("Please enter a URL.");
+      showLoading();
+      setTimeout(() => {
+        const html = `<embed src="${link}" style="width:100%; height:100%; border:none;">`;
+        const blob = new Blob([`<html><body style="margin:0">${html}</body></html>`], { type: "text/html" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "unblocker.html";
+        a.click();
+        hideLoading();
+      }, 800);
+    }
+
+    function showLogs() {
+      playClickSound();
+      document.getElementById("mainUI").classList.add("hidden");
+      document.getElementById("logUI").classList.remove("hidden");
+    }
+
+    function goBack() {
+      playClickSound();
+      document.getElementById("logUI").classList.add("hidden");
+      document.getElementById("mainUI").classList.remove("hidden");
+    }
+
+    // Panic shortcut
+    document.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key.toLowerCase() === 'q') {
+        window.location.href = document.getElementById("panicUrl").value || "https://classroom.google.com";
+      }
+    });
+  </script>
+</body>
+</html>
